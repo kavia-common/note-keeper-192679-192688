@@ -10,6 +10,8 @@ A minimal FastAPI backend that exposes CRUD endpoints for managing notes.
   - POST /notes
   - PUT /notes/{id}
   - DELETE /notes/{id}
+- Notes search:
+  - GET /notes/search?q=term&limit=20&offset=0
 - Pydantic models: NoteCreate, NoteUpdate, NoteRead
 - CORS enabled for local development
 - In-memory repository (can be swapped for a DB later)
@@ -42,6 +44,43 @@ python src/api/main.py
 Then open:
 - API Docs: http://localhost:3001/docs
 - Health: http://localhost:3001/health
+
+## Endpoint: Search Notes
+- Method: GET
+- Path: /notes/search
+- Query Parameters:
+  - q (string, required): Case-insensitive substring to search in title or content.
+  - limit (int, optional, default 20): Max number of results (0-100).
+  - offset (int, optional, default 0): Number of results to skip.
+- Behavior:
+  - Returns notes matching q in title or content.
+  - Ordered by updated_at descending.
+  - Paginated per limit and offset.
+- Response: 200 OK with JSON array of NoteRead.
+- Errors:
+  - 422 Validation Error if q missing/empty or params invalid.
+
+### Example Requests
+```bash
+# Basic search
+curl "http://localhost:3001/notes/search?q=meeting"
+
+# With pagination
+curl "http://localhost:3001/notes/search?q=todo&limit=10&offset=20"
+```
+
+### Example Response
+```json
+[
+  {
+    "id": "b0c3a9d6-9d8c-4a6e-9a1e-3d0b8a0c9f1a",
+    "title": "Meeting notes",
+    "content": "Discussed Q3 roadmap",
+    "created_at": "2025-01-01T12:00:00Z",
+    "updated_at": "2025-01-02T08:30:00Z"
+  }
+]
+```
 
 ## Configuration
 Environment variables (see .env.example):

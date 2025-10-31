@@ -3,7 +3,7 @@ import uuid
 from datetime import datetime
 from typing import Dict, List, Optional, Union
 
-from fastapi import FastAPI, HTTPException, Path
+from fastapi import FastAPI, HTTPException, Path, Query
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
@@ -93,6 +93,36 @@ class InMemoryRepository:
         """Delete a note by id. Returns True if deleted."""
         return self._store.pop(note_id, None) is not None
 
+    # PUBLIC_INTERFACE
+    def search_notes(self, q: str, limit: int = 20, offset: int = 0) -> List[NoteRead]:
+        """Search notes by case-insensitive substring in title or content.
+        Results ordered by updated_at descending and paginated.
+
+        Args:
+            q: Search query string (case-insensitive).
+            limit: Max number of results to return.
+            offset: Number of results to skip (for pagination).
+
+        Returns:
+            List[NoteRead]: Matching notes.
+        """
+        if not isinstance(q, str):
+            return []
+        needle = q.lower()
+        # Filter by title/content containing the query
+        matches = [
+            n for n in self._store.values()
+            if needle in n.title.lower() or needle in n.content.lower()
+        ]
+        # Order by updated_at descending
+        matches.sort(key=lambda n: n.updated_at, reverse=True)
+        # Pagination
+        if offset < 0:
+            offset = 0
+        if limit < 0:
+            limit = 0
+        return matches[offset: offset + limit]
+
 
 def _bool_env(var_name: str, default: bool = False) -> bool:
     val = os.getenv(var_name)
@@ -173,6 +203,38 @@ def _parse_id(id_str: str) -> Union[int, uuid.UUID]:
 def list_notes() -> List[NoteRead]:
     """List all notes currently stored."""
     return repo.list_notes()
+
+# PUBLIC_INTERFACE
+@app.get(
+    "/notes/search",
+    summary="Search Notes",
+    description=(
+        "Search notes by case-insensitive substring in title or content. "
+        "Results are ordered by updated_at descending and support pagination."
+    ),
+    tags=["Notes"],
+    response_model=List[NoteRead],
+    responses={
+        200: {"description": "List of matching notes"},
+        422: {"description": "Validation Error"},
+    },
+)
+def search_notes(
+    q: str = Query(..., description="Query string to search in title or content", min_length=1),
+    limit: int = Query(20, description="Maximum number of results to return", ge=0, le=100),
+    offset: int = Query(0, description="Number of results to skip (for pagination)", ge=0),
+) -> List[NoteRead]:
+    """Search for notes by title or content substring.
+
+    Parameters:
+    - q: Required query string for case-insensitive substring match.
+    - limit: Optional limit for pagination (default 20).
+    - offset: Optional offset for pagination (default 0).
+
+    Returns:
+    - List of NoteRead matching the query, ordered by updated_at descending.
+    """
+    return repo.search_notes(q=q, limit=limit, offset=offset)
 
 # PUBLIC_INTERFACE
 @app.get(
